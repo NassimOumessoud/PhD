@@ -1,0 +1,582 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tipping-bucket rain gauge limit-cycle simulator</title>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--line:#374151;--text:#e5e7eb;--muted:#9ca3af;--water:#38bdf8;--yellow:#facc15;--green:#34d399;--red:#fb7185;--blue:#60a5fa}*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:radial-gradient(circle at top,#1e293b,var(--bg));color:var(--text)}header{padding:24px 28px 12px;border-bottom:1px solid var(--line)}h1{margin:0 0 8px;font-size:26px}.subtitle{color:var(--muted);max-width:1100px;line-height:1.45}main{display:grid;grid-template-columns:390px 1fr;gap:18px;padding:18px}.panel{background:rgba(17,24,39,.92);border:1px solid var(--line);border-radius:16px;box-shadow:0 18px 60px rgba(0,0,0,.25)}.controls{padding:16px;height:max-content}.section-title{margin:14px 0 8px;color:var(--muted);font-size:13px;text-transform:uppercase;letter-spacing:.08em}.row{display:grid;grid-template-columns:1fr 84px;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid rgba(55,65,81,.45)}label{font-size:14px}.hint{display:block;color:var(--muted);font-size:12px;margin-top:2px}input[type=range]{width:100%;accent-color:var(--blue)}.value{text-align:right;font-variant-numeric:tabular-nums;color:#dbeafe;font-size:13px}button{background:#1f2937;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:9px 12px;cursor:pointer;font-weight:650}button:hover{border-color:var(--blue)}.button-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}.grid{display:grid;grid-template-columns:1.1fr .9fr;gap:18px}.display{padding:16px}.status-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}.metric{background:rgba(31,41,55,.8);border:1px solid rgba(55,65,81,.7);border-radius:12px;padding:10px}.metric .name{color:var(--muted);font-size:12px;margin-bottom:4px}.metric .number{font-size:18px;font-variant-numeric:tabular-nums;font-weight:800}.metric .small{color:var(--muted);font-size:12px;margin-top:2px}canvas{width:100%;background:rgba(15,23,42,.72);border:1px solid var(--line);border-radius:14px}#scene{height:360px}.plot{height:190px}.plot-wrap{padding:12px}.plot-title{font-size:13px;color:var(--muted);margin-bottom:8px}.plot-grid{display:grid;gap:14px}.note,.model{padding:16px 18px;margin-top:18px;color:var(--muted);line-height:1.5;font-size:14px}.model h2{color:var(--text);margin-top:0}.model h3{color:var(--text);margin:22px 0 8px}.eq{background:rgba(15,23,42,.65);border:1px solid rgba(55,65,81,.8);color:#e0f2fe;padding:10px 12px;border-radius:10px;margin:10px 0;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-x:auto}table{width:100%;border-collapse:collapse;margin:10px 0 16px;font-size:13px}th,td{border:1px solid rgba(55,65,81,.85);padding:8px 9px;vertical-align:top}th{color:var(--text);background:rgba(31,41,55,.85);text-align:left}.legend{display:flex;gap:14px;flex-wrap:wrap;color:var(--muted);font-size:12px;margin-top:10px}.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:-1px}@media(max-width:1050px){main{grid-template-columns:1fr}.grid{grid-template-columns:1fr}.status-bar{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<header><h1>Tipping-bucket rain gauge limit-cycle simulator</h1><div class="subtitle">A two-bucket relaxation oscillator. A fixed nozzle continuously feeds the lower bucket; both buckets leak through small holes; when the lower bucket reaches a threshold the seesaw flips, that bucket dumps, and the other bucket becomes active.</div></header>
+<main>
+<aside class="panel controls">
+<div class="section-title">Drive and dissipation</div>
+<div class="row"><div><label>Inflow rate</label><span class="hint">continuous drive</span><input id="qin" type="range" min="0" max="5" step="0.01" value="1.2"></div><div class="value" id="qinVal"></div></div>
+<div class="row"><div><label>Leak diameter</label><span class="hint">same effective hole in both buckets</span><input id="leakDia" type="range" min="0" max="8" step="0.1" value="3.0"></div><div class="value" id="leakDiaVal"></div></div>
+<div class="row"><div><label>Leak height</label><span class="hint">above bucket bottom</span><input id="leakHeight" type="range" min="0" max="8" step="0.1" value="0.5"></div><div class="value" id="leakHeightVal"></div></div>
+<div class="section-title">Bucket geometry</div>
+<div class="row"><div><label>Length</label><span class="hint">along seesaw direction</span><input id="length" type="range" min="6" max="30" step="0.5" value="14"></div><div class="value" id="lengthVal"></div></div>
+<div class="row"><div><label>Width</label><span class="hint">into the page</span><input id="width" type="range" min="4" max="20" step="0.5" value="8"></div><div class="value" id="widthVal"></div></div>
+<div class="row"><div><label>Height</label><span class="hint">maximum water depth</span><input id="height" type="range" min="4" max="18" step="0.5" value="8"></div><div class="value" id="heightVal"></div></div>
+<div class="section-title">Mechanics</div>
+<div class="row"><div><label>Single bucket mass</label><span class="hint">bare mass of each identical bucket</span><input id="bareMass" type="range" min="5" max="500" step="5" value="80"></div><div class="value" id="bareMassVal"></div></div>
+
+<div class="row"><div><label>Tip angle</label><span class="hint">stable seesaw angle</span><input id="tipAngle" type="range" min="8" max="35" step="1" value="18"></div><div class="value" id="tipAngleVal"></div></div>
+<div class="row"><div><label>Switching time</label><span class="hint">mechanical flip time</span><input id="switchTime" type="range" min="0.1" max="3" step="0.05" value="0.55"></div><div class="value" id="switchTimeVal"></div></div>
+<div class="button-row"><button id="pauseBtn">Pause</button><button id="resetBtn">Reset</button><button id="presetFixed">Fixed point</button><button id="presetCycle">Limit cycle</button><button id="presetPinned">Overdriven</button></div>
+</aside>
+<section>
+<div class="grid">
+<div class="panel display"><div class="status-bar">
+<div class="metric"><div class="name">Regime</div><div class="number" id="regimeText">-</div><div class="small" id="regimeDetail">-</div></div>
+<div class="metric"><div class="name">Active bucket</div><div class="number" id="activeText">-</div><div class="small" id="angleText">-</div></div>
+<div class="metric"><div class="name">Inlet-bucket volume / threshold</div><div class="number" id="volumeText">-</div><div class="small" id="thresholdText">-</div></div>
+<div class="metric"><div class="name">Loss at threshold</div><div class="number" id="leakText">-</div><div class="small" id="periodText">-</div></div>
+</div><canvas id="scene" width="900" height="430"></canvas><div class="legend"><span><span class="dot" style="background:var(--water)"></span>water</span><span><span class="dot" style="background:var(--blue)"></span>inflow</span></div></div>
+<div class="plot-grid"><div class="panel plot-wrap"><div class="plot-title">Input and output flow vs time</div><canvas id="timePlot" class="plot" width="640" height="240"></canvas></div><div class="panel plot-wrap"><div class="plot-title">Phase portrait: tilt angle vs total output flow</div><canvas id="phasePlot" class="plot" width="640" height="240"></canvas></div></div>
+</div>
+<div class="panel note"><strong>Observables:</strong> the nozzle input <code>Q_in</code> is constant, while the total output <code>Q_out = Q_leak,L + Q_leak,R + Q_dump,L + Q_dump,R</code> can become periodic. The phase portrait now uses the macroscopic tilt angle versus total output flow, <code>theta</code> vs. <code>Q_out</code>, as the limit-cycle observable pair.</div>
+<div class="panel model"><h2>Model and derivation</h2><p><strong>Internal derived quantities:</strong> the tipping volume is now obtained from a torque balance that includes the single-bucket bare mass slider. Retained volume after spill, dump outflow, and overdrive condition are derived inside the script. The only remaining mechanical control is the restoring/switching time, which sets how quickly the insert moves between the two stable tilted states.</p>
+<p>This is a hybrid relaxation-oscillator model of a tipping-bucket rain gauge with dissipation. It is intentionally simpler and more robust than the single counterweighted bucket: the two stable mechanical states are built into the seesaw geometry.</p>
+<h3>1. State variables</h3><p>The reported bucket volume follows the bucket currently receiving <code>Q_in</code>. During a flip, this is the receiving bucket, not the bucket that is simultaneously dumping.</p><p>The state is the pair of bucket volumes <code>V_L(t)</code>, <code>V_R(t)</code>, and the seesaw angle <code>theta(t)</code>. Positive angle means the left bucket is lower; negative angle means the right bucket is lower.</p>
+<table><tr><th>Variable</th><th>Meaning</th></tr><tr><td><code>Q_in</code></td><td>continuous flow from the fixed nozzle</td></tr><tr><td><code>Q_leak(V)</code></td><td>loss through a hole in each bucket</td></tr><tr><td><code>V_tip</code></td><td>inlet-bucket volume at which the seesaw flips</td></tr><tr><td><code>V_reset</code></td><td>residual volume after a bucket dumps</td></tr></table>
+<h3>2. Geometry and threshold</h3><p>Each bucket is approximated as a rectangular trough with length <code>L</code>, width <code>W</code>, and height <code>H</code>.</p><div class="eq">V_max = L W H</div><p>The tipping volume is set as a fraction of capacity:</p><div class="eq">V_tip = f_tip V_max</div><p>This replaces a full torque calculation. In a real rain gauge, <code>V_tip</code> is set by bucket shape, pivot placement, friction, stops, and center of mass.</p>
+<h3>3. Leakage</h3><p>For an effective circular leak hole of diameter <code>d</code>, area <code>A = pi d^2 / 4</code>, and height <code>h_leak</code>, Torricelli flow gives</p><div class="eq">Q_leak(V) = C_d A sqrt(2 g max(V/(LW) - h_leak, 0))</div><p>Both buckets leak at all times.</p>
+<h3>4. Filling phase</h3><p>Let <code>a</code> be the lower active bucket and <code>b</code> the other bucket. During filling,</p><div class="eq">dV_a/dt = Q_in - Q_leak(V_a)</div><div class="eq">dV_b/dt = - Q_leak(V_b)</div><p>If the active bucket reaches a fixed point below threshold, the system does not tip.</p><div class="eq">Q_in = Q_leak(V_*), with V_* &lt; V_tip</div>
+<h3>5. Switching and dumping</h3><p>When <code>V_a >= V_tip</code>, the target angle changes sign. The filled bucket is lifted and dumps toward a residual volume, while the other bucket becomes the receiver:</p><div class="eq">dV_dump/dt = -(V_dump - V_reset)/tau_dump - Q_leak(V_dump)</div><div class="eq">dV_receive/dt = Q_in - Q_leak(V_receive)</div><p>The angle relaxes toward the opposite stable side with a finite switching time.</p>
+<h3>6. Regimes</h3><p>A convenient drive parameter is</p><div class="eq">D = Q_in / Q_leak(V_tip)</div><table><tr><th>Condition</th><th>Behavior</th></tr><tr><td><code>D &lt; 1</code></td><td>fixed point below threshold</td></tr><tr><td><code>D &gt; 1</code>, clean reset</td><td>stable alternating limit cycle</td></tr><tr><td>very large drive</td><td>overdriven/pinned or irregular behavior</td></tr></table>
+<h3>7. Optical-cavity analogy</h3><table><tr><th>Optical cavity</th><th>Tipping-bucket demo</th></tr><tr><td>continuous laser drive</td><td>continuous inflow</td></tr><tr><td>loss/dissipation</td><td>holes in both buckets</td></tr><tr><td>nonlinear threshold</td><td>tipping threshold</td></tr><tr><td>self-pulsing</td><td>alternating fill-tip-dump cycle</td></tr></table>
+</div>
+</section></main>
+<script>
+const g=9.81,Cd=.62,rho=1000;const ids=["qin","leakDia","leakHeight","length","width","height","bareMass","tipAngle","switchTime"];const el={};ids.forEach(id=>el[id]=document.getElementById(id));const out={};["qinVal","leakDiaVal","leakHeightVal","lengthVal","widthVal","heightVal","bareMassVal","tipAngleVal","switchTimeVal","regimeText","regimeDetail","activeText","angleText","volumeText","thresholdText","leakText","periodText"].forEach(id=>out[id]=document.getElementById(id));const scene=document.getElementById('scene'),timePlot=document.getElementById('timePlot'),phasePlot=document.getElementById('phasePlot');const sctx=scene.getContext('2d'),tctx=timePlot.getContext('2d'),pctx=phasePlot.getContext('2d');let state={},hist=[],paused=false,last=performance.now();
+function P(){let p={};ids.forEach(id=>p[id]=parseFloat(el[id].value));p.qin_m3s=p.qin/60000;p.leakDia_m=p.leakDia/1000;p.leakArea=Math.PI*p.leakDia_m*p.leakDia_m/4;p.leakHeight_m=p.leakHeight/100;p.L=p.length/100;p.W=p.width/100;p.H=p.height/100;p.bucketMass_kg=p.bareMass/1000;p.Vmax=p.L*p.W*p.H;p.thetaMax=p.tipAngle*Math.PI/180;p.switchTau=Math.max(.03,p.switchTime/3);p.weirCoeff=.75;p.restoreMoment=restoreMoment(p);p.Vtip=tipVolumeFromTorque('L',p,activeRestAngle('L',p));p.thresholdFraction=Math.max(0,Math.min(1,p.Vtip/p.Vmax));p.Vreset=Math.max(0,Math.min(.65*p.Vtip,retainedCapacity('L',p,dumpAngle('L',p))));p.leakAtTip=leak(Math.min(p.Vtip,p.Vmax),p);p.D=p.leakAtTip>1e-12?p.qin_m3s/p.leakAtTip:Infinity;return p}
+function hV(V,p){return Math.min(p.H,Math.max(0,V/(p.L*p.W)))}function leak(V,p){let head=Math.max(0,hV(V,p)-p.leakHeight_m);return Cd*p.leakArea*Math.sqrt(2*g*head)}
+function triY(pt,phi){return pt.z*Math.cos(phi)-pt.x*Math.sin(phi)}
+function polyArea(poly){if(poly.length<3)return 0;let a=0;for(let i=0;i<poly.length;i++){let p0=poly[i],p1=poly[(i+1)%poly.length];a+=p0.x*p1.z-p1.x*p0.z}return Math.abs(a)/2}
+function triAreaBelow(level,side,p,theta){
+  // Triangular bucket chamber. Coordinates are schematic but scaled to physical geometry:
+  // x is horizontal from the divider toward the outer lip; z is vertical.
+  // Each side is mirrored. The side parameter is 'L' or 'R'.
+  let s=side==='L'?-1:1;
+  let L=p.L,H=p.H;
+  let tri=[{x:0,z:H},{x:s*L,z:0},{x:0,z:-H}];
+  let phi=theta;
+  let out=[];
+  for(let i=0;i<tri.length;i++){
+    let a=tri[i],b=tri[(i+1)%tri.length];
+    let ya=triY(a,phi),yb=triY(b,phi);
+    let ai=ya<=level,bi=yb<=level;
+    if(ai&&bi){out.push(b)}
+    else if(ai&&!bi){
+      let t=(level-ya)/(yb-ya);
+      out.push({x:a.x+t*(b.x-a.x),z:a.z+t*(b.z-a.z)})
+    }else if(!ai&&bi){
+      let t=(level-ya)/(yb-ya);
+      out.push({x:a.x+t*(b.x-a.x),z:a.z+t*(b.z-a.z)});
+      out.push(b)
+    }
+  }
+  return polyArea(out)
+}
+function triLevelForArea(targetA,side,p,theta){
+  let s=side==='L'?-1:1,L=p.L,H=p.H;
+  let pts=[{x:0,z:H},{x:s*L,z:0},{x:0,z:-H}];
+  let lo=Infinity,hi=-Infinity;
+  pts.forEach(pt=>{let y=triY(pt,theta);lo=Math.min(lo,y);hi=Math.max(hi,y)});
+  lo-=1e-9;hi+=1e-9;
+  let Amax=L*H;
+  targetA=Math.max(0,Math.min(Amax,targetA));
+  for(let i=0;i<52;i++){
+    let mid=.5*(lo+hi);
+    if(triAreaBelow(mid,side,p,theta)<targetA)lo=mid;else hi=mid
+  }
+  return .5*(lo+hi)
+}
+function geomDump(side,V,p,theta){
+  if(V<=p.Vreset||p.W<=0||p.L<=0||p.H<=0)return 0;
+  // Convert volume to cross-sectional area. The triangular chamber has area L*H,
+  // so Vmax = L*W*H remains consistent with the existing controls.
+  let targetA=Math.max(0,Math.min(p.L*p.H,V/p.W));
+  let ys=triLevelForArea(targetA,side,p,theta);
+
+  // The pouring lip is the outer vertex of the triangular bucket.
+  let s=side==='L'?-1:1;
+  let lip={x:s*p.L,z:0};
+  let ylip=triY(lip,theta);
+
+  // Only spill when the horizontal free surface lies above the outer lip.
+  let head=Math.max(0,ys-ylip);
+  if(head<=0)return 0;
+
+  // Broad-crested-weir scaling. W is the edge width into the page.
+  // p.weirCoeff is the calibration slider.
+  return p.weirCoeff*p.W*Math.sqrt(2*g)*Math.pow(head,1.5)
+}
+function retainedCapacity(side,p,theta){let s=side==='L'?-1:1;let lip={x:s*p.L,z:0};let ylip=triY(lip,theta);return Math.max(0,Math.min(p.Vmax,triAreaBelow(ylip,side,p,theta)*p.W))}
+function triPolygonBelow(level,side,p,theta){
+  let s=side==='L'?-1:1;
+  let L=p.L,H=p.H;
+  let tri=[{x:0,z:H},{x:s*L,z:0},{x:0,z:-H}];
+  let out=[];
+  for(let i=0;i<tri.length;i++){
+    let a=tri[i],b=tri[(i+1)%tri.length];
+    let ya=triY(a,theta),yb=triY(b,theta);
+    let ai=ya<=level,bi=yb<=level;
+    if(ai&&bi){out.push(b)}
+    else if(ai&&!bi){
+      let t=(level-ya)/(yb-ya);
+      out.push({x:a.x+t*(b.x-a.x),z:a.z+t*(b.z-a.z)})
+    }else if(!ai&&bi){
+      let t=(level-ya)/(yb-ya);
+      out.push({x:a.x+t*(b.x-a.x),z:a.z+t*(b.z-a.z)});
+      out.push(b)
+    }
+  }
+  return out
+}
+function polyCentroid(poly){
+  if(poly.length<3)return{x:0,z:0,area:0};
+  let A=0,Cx=0,Cz=0;
+  for(let i=0;i<poly.length;i++){
+    let p0=poly[i],p1=poly[(i+1)%poly.length];
+    let c=p0.x*p1.z-p1.x*p0.z;
+    A+=c;
+    Cx+=(p0.x+p1.x)*c;
+    Cz+=(p0.z+p1.z)*c
+  }
+  A*=.5;
+  if(Math.abs(A)<1e-14)return{x:0,z:0,area:0};
+  return{x:Cx/(6*A),z:Cz/(6*A),area:Math.abs(A)}
+}
+function waterCentroid(side,V,p,theta){
+  if(V<=0)return{x:0,z:0,area:0};
+  let targetA=Math.max(0,Math.min(p.L*p.H,V/p.W));
+  let level=triLevelForArea(targetA,side,p,theta);
+  return polyCentroid(triPolygonBelow(level,side,p,theta))
+}
+function waterMomentToward(side,V,p,theta){
+  // Gravitational torque about the central pivot. The only lever arm that matters
+  // for a vertical force is the lab-frame horizontal position of the water centroid.
+  // Positive value means torque toward that side's outer lip.
+  if(V<=0)return 0;
+  let c=waterCentroid(side,V,p,theta);
+  let xLab=c.x*Math.cos(theta)+c.z*Math.sin(theta);
+  let outward=side==='L'?-xLab:xLab;
+  return Math.max(0,rho*V*g*outward)
+}
+function netWaterMomentToward(side,p,theta){
+  let other=side==='L'?'R':'L';
+  let Vside=side==='L'?state.VL:state.VR;
+  let Vother=other==='L'?state.VL:state.VR;
+  return waterMomentToward(side,Vside,p,theta)-waterMomentToward(other,Vother,p,theta)
+}
+function restoreMoment(p){
+  // Restoring torque from the two equal bare bucket masses.
+  // The two bucket masses are symmetric left/right, so their horizontal lever arms
+  // cancel when the assembly is level. In a real tipping-bucket insert the empty
+  // assembly has a center of mass slightly below the pivot, which gives two stable
+  // tilted states. We model that by assigning each bare bucket a COM drop below
+  // the pivot proportional to the bucket height.
+  //
+  // The restoring moment that must be overcome to leave a stable tilted state is
+  // approximately 2 m_b g d_b sin(theta_max), plus a small bearing/stop hysteresis
+  // term so that a zero-mass ideal bucket does not chatter.
+  let mb=Math.max(0,p.bucketMass_kg);
+  let dBare=0.32*p.H;
+  let bare=2*mb*g*dBare*Math.sin(Math.max(0,p.thetaMax));
+  let hysteresis=.018*rho*g*p.Vmax*Math.max(p.L,p.H);
+  return bare+hysteresis
+}
+function tipVolumeFromTorque(side,p,theta){
+  let Mr=restoreMoment(p);
+  if(waterMomentToward(side,p.Vmax,p,theta)<Mr)return 1.02*p.Vmax;
+  let lo=0,hi=p.Vmax;
+  for(let i=0;i<52;i++){
+    let mid=.5*(lo+hi);
+    if(waterMomentToward(side,mid,p,theta)<Mr)lo=mid;else hi=mid
+  }
+  return .5*(lo+hi)
+}
+function shouldTip(side,p,theta){
+  return netWaterMomentToward(side,p,theta)>=p.restoreMoment
+}
+
+
+function qout(p){let q=leak(state.VL,p)+leak(state.VR,p);if(state.dumping){let Vd=state.dumping==='L'?state.VL:state.VR;q+=geomDump(state.dumping,Vd,p,state.theta)}return q}function activeRestAngle(side,p){return side==='L'?p.thetaMax:-p.thetaMax}function dumpAngle(side,p){return side==='L'?-p.thetaMax:p.thetaMax}function mL(x){return (x*1e6).toFixed(1)+' mL'}function lpm(x){return (x*60000).toFixed(2)+' L/min'}
+function reset(){let p=P();let a='L';state={t:0,VL:.05*p.Vtip,VR:.05*p.Vtip,active:a,dumping:null,receiving:a,theta:activeRestAngle(a,p),target:activeRestAngle(a,p),pinned:false,lastPeriodTip:null,halfTips:0,period:null};hist=[];last=performance.now()}function inletSide(){return state.dumping?state.receiving:state.active}function activeV(){let s=inletSide();return s==='L'?state.VL:state.VR}
+function labels(p){out.qinVal.textContent=el.qin.value+' L/min';out.leakDiaVal.textContent=parseFloat(el.leakDia.value).toFixed(1)+' mm';out.leakHeightVal.textContent=parseFloat(el.leakHeight.value).toFixed(1)+' cm';out.lengthVal.textContent=parseFloat(el.length.value).toFixed(1)+' cm';out.widthVal.textContent=parseFloat(el.width.value).toFixed(1)+' cm';out.heightVal.textContent=parseFloat(el.height.value).toFixed(1)+' cm';out.bareMassVal.textContent=parseFloat(el.bareMass.value).toFixed(0)+' g';out.tipAngleVal.textContent=parseFloat(el.tipAngle.value).toFixed(0)+'°';out.switchTimeVal.textContent=parseFloat(el.switchTime.value).toFixed(2)+' s';out.activeText.textContent=inletSide()==='L'?'Left':'Right';out.angleText.textContent='theta = '+(state.theta*180/Math.PI).toFixed(1)+'°';out.volumeText.textContent=mL(activeV());let Mnow=netWaterMomentToward(inletSide(),p,state.theta);out.thresholdText.textContent='V_tip = '+mL(p.Vtip)+', M/Mr = '+(p.restoreMoment>0?(Mnow/p.restoreMoment).toFixed(2):'∞')+', m_b = '+p.bareMass.toFixed(0)+' g';out.leakText.textContent=lpm(p.leakAtTip);out.periodText.textContent=state.period?'period ≈ '+state.period.toFixed(1)+' s':'period not measured';let reg,det;if(p.Vtip>p.Vmax){reg='No tipping';det='water torque below restoring torque'}else if(state.pinned){reg='Overdriven';det='reset not clean'}else if(state.dumping){reg='Limit cycle';det='flip and dump phase'}else if(p.D<1){reg='Fixed point';det='leakage balances inflow'}else{reg='Limit cycle';det='alternating fill-tip-dump'}out.regimeText.textContent=reg;out.regimeDetail.textContent=det;out.regimeText.style.color=reg==='Limit cycle'?'var(--green)':reg==='Fixed point'?'var(--blue)':reg==='Overdriven'?'var(--red)':'var(--yellow)'}
+function step(dt,p){
+  state.VL=Math.max(0,Math.min(state.VL,p.Vmax));
+  state.VR=Math.max(0,Math.min(state.VR,p.Vmax));
+
+  let lL=leak(state.VL,p),lR=leak(state.VR,p);
+
+  if(state.dumping){
+    // During a dump, the nozzle has already been redirected to the opposite bucket.
+    if(state.receiving==='L')state.VL+=p.qin_m3s*dt;
+    else state.VR+=p.qin_m3s*dt;
+
+    // Both leakage holes remain active.
+    state.VL-=lL*dt;
+    state.VR-=lR*dt;
+
+    // The rocker tilts toward the side that triggered the event.
+    state.theta+=(state.target-state.theta)*(1-Math.exp(-dt/p.switchTau));
+
+    // Geometry-derived outflow over the outer lip of the dumping bucket.
+    let dumpV=state.dumping==='L'?state.VL:state.VR;
+    let qDump=geomDump(state.dumping,dumpV,p,state.theta);
+    if(state.dumping==='L')state.VL-=qDump*dt;
+    else state.VR-=qDump*dt;
+
+    dumpV=state.dumping==='L'?state.VL:state.VR;
+    let qAfter=geomDump(state.dumping,dumpV,p,state.theta);
+    let nearA=Math.abs(state.theta-state.target)<.02;
+
+    // With geometry-derived dumping, the bucket should not be forced to reach
+    // the artificial residual volume. Once the horizontal free surface has fallen
+    // below the outer lip, the fast dump is physically over.
+    let nearResidual=dumpV<=p.Vreset+.05*p.Vtip;
+    let geometryEmpty=(qAfter<.03*Math.max(p.qin_m3s,p.leakAtTip,1e-9))&&dumpV<.35*p.Vtip;
+    let dumpComplete=nearResidual||geometryEmpty;
+
+    // Only call the state "pinned" if the incoming drive overwhelms an actually
+    // available dump flow. Do not pin merely because the geometric spill has
+    // naturally ended.
+    let dumpScale=Math.max(qAfter,.25*p.qin_m3s,1e-9);
+    state.pinned=(!dumpComplete)&&p.qin_m3s>2.2*dumpScale;
+
+    if(!state.pinned&&nearA&&dumpComplete){
+      let newActive=state.receiving;
+      state.dumping=null;
+      state.active=newActive;
+      state.target=activeRestAngle(newActive,p);
+      state.theta=state.target;
+    }
+  }else{
+    // Normal filling phase: only the active bucket receives the fixed inlet.
+    if(state.active==='L')state.VL+=p.qin_m3s*dt;
+    else state.VR+=p.qin_m3s*dt;
+
+    // Both buckets leak continuously.
+    state.VL-=lL*dt;
+    state.VR-=lR*dt;
+
+    state.theta+=(state.target-state.theta)*(1-Math.exp(-dt/p.switchTau));
+
+    let activeVolume=state.active==='L'?state.VL:state.VR;
+    if(shouldTip(state.active,p,state.theta)&&p.Vtip<=p.Vmax){
+      let filled=state.active;
+      let next=filled==='L'?'R':'L';
+
+      // Critical correction: tip toward the bucket that has filled.
+      // Left bucket over-threshold -> left tilt -> spill over left outer edge.
+      // Right bucket over-threshold -> right tilt -> spill over right outer edge.
+      state.dumping=filled;
+      state.receiving=next;
+      state.target=dumpAngle(filled,p);
+
+      state.halfTips++;
+      if(state.halfTips>=2){
+        if(state.lastPeriodTip!==null)state.period=state.t-state.lastPeriodTip;
+        state.lastPeriodTip=state.t;
+        state.halfTips=0
+      }
+    }
+  }
+
+  state.VL=Math.max(0,Math.min(state.VL,p.Vmax));
+  state.VR=Math.max(0,Math.min(state.VR,p.Vmax));
+  state.t+=dt;
+  hist.push({t:state.t,VL:state.VL,VR:state.VR,theta:state.theta,activeV:activeV(),inlet:inletSide(),qin:p.qin_m3s,qout:qout(p)});
+  while(hist.length&&state.t-hist[0].t>120)hist.shift()
+}
+function bucket(ctx,x,y,bw,bh,d,V,p,name){let f=Math.max(0,Math.min(1,V/p.Vmax)),wh=bh*f,top=y+bh-wh;ctx.strokeStyle='rgba(229,231,235,.38)';ctx.lineWidth=2;ctx.strokeRect(x+d,y-.45*d,bw,bh);ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+d,y-.45*d);ctx.moveTo(x+bw,y);ctx.lineTo(x+bw+d,y-.45*d);ctx.moveTo(x,y+bh);ctx.lineTo(x+d,y+bh-.45*d);ctx.moveTo(x+bw,y+bh);ctx.lineTo(x+bw+d,y+bh-.45*d);ctx.stroke();ctx.strokeStyle='#e5e7eb';ctx.lineWidth=4;ctx.strokeRect(x,y,bw,bh);ctx.fillStyle='rgba(103,232,249,.16)';ctx.fillRect(x+3,top,bw-6,wh);ctx.strokeStyle='#67e8f9';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x+4,top);ctx.lineTo(x+bw-4,top);ctx.stroke();let ly=y+bh-Math.max(.06,p.leakHeight_m/Math.max(p.H,1e-6))*bh;ctx.fillStyle='#fb7185';ctx.beginPath();ctx.arc(x+bw*.72,ly,4.5,0,Math.PI*2);ctx.fill();ctx.fillStyle='#e5e7eb';ctx.font='12px system-ui';ctx.fillText(name,x+bw*.38,y-8)}
+function drawScene(p){
+  let ctx=sctx,w=scene.width,h=scene.height;
+  ctx.clearRect(0,0,w,h);
+  ctx.fillStyle='#0b1220';
+  ctx.fillRect(0,0,w,h);
+// Base reservoir / drainage tray
+  let trayL=105,trayR=w-105,trayT=h-108,trayB=h-58,waterY=trayT+23;
+  ctx.strokeStyle='#e5e7eb';
+  ctx.lineWidth=4;
+  ctx.lineCap='round';
+  ctx.beginPath();
+  ctx.moveTo(trayL,trayT);
+  ctx.lineTo(trayL,trayB);
+  ctx.lineTo(trayR,trayB);
+  ctx.lineTo(trayR,trayT);
+  ctx.stroke();
+ctx.strokeStyle='#67e8f9';
+  ctx.lineWidth=5;
+  ctx.beginPath();
+  ctx.moveTo(trayL+5,waterY);
+  ctx.lineTo(trayR-5,waterY);
+  ctx.stroke();
+txt(ctx,'Reservoir',trayR-78,trayT-8,'#e5e7eb');
+// Fixed water nozzle only.
+  let px=w*.5,py=h*.56;
+  let nozzleX=px,nozzleY=50;
+ctx.strokeStyle='#e5e7eb';
+  ctx.lineWidth=5;
+  ctx.lineCap='round';
+  ctx.beginPath();
+  ctx.moveTo(nozzleX,nozzleY-28);
+  ctx.lineTo(nozzleX,nozzleY);
+  ctx.stroke();
+ctx.strokeStyle='#67e8f9';
+  ctx.lineWidth=4;
+  ctx.beginPath();
+  ctx.moveTo(nozzleX,nozzleY);
+  ctx.lineTo(nozzleX,py-92);
+  ctx.stroke();
+ctx.fillStyle='#67e8f9';
+  ctx.beginPath();
+  ctx.moveTo(nozzleX,py-78);
+  ctx.lineTo(nozzleX-8,py-94);
+  ctx.lineTo(nozzleX+8,py-94);
+  ctx.closePath();
+  ctx.fill();
+txt(ctx,'fixed water inlet',nozzleX+18,nozzleY+20,'#bfdbfe');
+// Frame holding the bucket insert in place.
+  ctx.strokeStyle='#e5e7eb';
+  ctx.lineWidth=4;
+  ctx.lineCap='round';
+  ctx.beginPath();
+  ctx.moveTo(px,py);
+  ctx.lineTo(px-76,trayB);
+  ctx.moveTo(px,py);
+  ctx.lineTo(px+76,trayB);
+  ctx.stroke();
+// Small pivot in the frame
+  ctx.fillStyle='rgba(229,231,235,.20)';
+  ctx.strokeStyle='#e5e7eb';
+  ctx.lineWidth=3;
+  ctx.beginPath();
+  ctx.arc(px,py,12,0,Math.PI*2);
+  ctx.fill();
+  ctx.stroke();
+// Diamond bucket geometry. The complete bucket insert is one compact diamond,
+  // with two triangular chambers separated by the vertical short axis.
+  let gs=760/Math.max(.4,p.length);
+  let halfW=Math.min(165,Math.max(88,p.L*gs*.39));
+  let halfH=Math.min(86,Math.max(44,p.H*gs*.54));
+  let depth=Math.min(32,Math.max(8,p.W*gs*.11));
+  let th=state.theta;
+function tr(x,y){return{x:px+x*Math.cos(th)-y*Math.sin(th),y:py+x*Math.sin(th)+y*Math.cos(th)}}
+ctx.save();
+  ctx.translate(px,py);
+  ctx.rotate(th);
+// Back-face hint for container width
+  ctx.strokeStyle='rgba(229,231,235,.30)';
+  ctx.lineWidth=2;
+  ctx.beginPath();
+  ctx.moveTo(-halfW+depth,-depth*.35);
+  ctx.lineTo(0+depth,-halfH-depth*.35);
+  ctx.lineTo(halfW+depth,-depth*.35);
+  ctx.lineTo(0+depth,halfH-depth*.35);
+  ctx.closePath();
+  ctx.stroke();
+// Front diamond outline
+  ctx.fillStyle='rgba(229,231,235,.08)';
+  ctx.strokeStyle='#e5e7eb';
+  ctx.lineWidth=4;
+  ctx.beginPath();
+  ctx.moveTo(-halfW,0);
+  ctx.lineTo(0,-halfH);
+  ctx.lineTo(halfW,0);
+  ctx.lineTo(0,halfH);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+// Vertical divider: the short axis separating the two triangular buckets.
+  ctx.strokeStyle='#e5e7eb';
+  ctx.lineWidth=4;
+  ctx.beginPath();
+  ctx.moveTo(0,-halfH);
+  ctx.lineTo(0,halfH);
+  ctx.stroke();
+// Water fill for each triangular chamber.
+  function fillTri(side,V){
+    let s=side==='L'?-1:1;
+    let outerX=s*halfW;
+    let frac=Math.max(0,Math.min(1,V/p.Vmax));
+// Triangle vertices for clipping.
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(0,-halfH);
+    ctx.lineTo(outerX,0);
+    ctx.lineTo(0,halfH);
+    ctx.closePath();
+    ctx.clip();
+// Simple apparent fill. This is schematic; the state dynamics are handled by the model.
+    let top=halfH-frac*2*halfH;
+    ctx.fillStyle='rgba(103,232,249,.18)';
+    ctx.fillRect(Math.min(0,outerX)-6,top,Math.abs(outerX)+12,halfH-top+5);
+ctx.strokeStyle='#67e8f9';
+    ctx.lineWidth=3;
+    ctx.beginPath();
+    ctx.moveTo(Math.min(0,outerX)+4,top);
+    ctx.lineTo(Math.max(0,outerX)-4,top);
+    ctx.stroke();
+ctx.restore();
+  }
+fillTri('L',state.VL);
+  fillTri('R',state.VR);
+ctx.restore();
+// Dynamic cyan water flows. These replace the previous red leak/dump markers.
+  // Leak thickness and droplet density scale with the instantaneous Torricelli leakage.
+  let leftLeak=tr(-halfW*.55,halfH*.37);
+  let rightLeak=tr(halfW*.55,halfH*.37);
+function flowStrength(q,ref){
+    if(q<=0||ref<=0)return 0;
+    return Math.max(0,Math.min(1,Math.sqrt(q/ref)));
+  }
+function drawFlow(x0,y0,x1,y1,q,ref,phaseOffset){
+    let s=flowStrength(q,ref);
+    if(s<=.02)return;
+ctx.save();
+    ctx.strokeStyle='rgba(103,232,249,'+(.22+.58*s).toFixed(3)+')';
+    ctx.lineWidth=1.1+4.2*s;
+    ctx.lineCap='round';
+// slightly curved stream
+    let cx=(x0+x1)/2+(x1>x0?10:-10)*s;
+    let cy=(y0+y1)/2;
+    ctx.beginPath();
+    ctx.moveTo(x0,y0);
+    ctx.quadraticCurveTo(cx,cy,x1,y1);
+    ctx.stroke();
+// moving droplets along the same stream; number and size depend on flow rate.
+    let n=Math.max(1,Math.round(2+7*s));
+    let phase=(state.t*1.7+phaseOffset)%1;
+    ctx.fillStyle='rgba(186,230,253,'+(.35+.55*s).toFixed(3)+')';
+    for(let i=0;i<n;i++){
+      let u=(i/n+phase)%1;
+      let xa=(1-u)*(1-u)*x0+2*(1-u)*u*cx+u*u*x1;
+      let ya=(1-u)*(1-u)*y0+2*(1-u)*u*cy+u*u*y1;
+      ctx.beginPath();
+      ctx.ellipse(xa,ya,1.2+2.2*s,2.4+4.0*s,0,0,Math.PI*2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+let refLeak=Math.max(p.leakAtTip,p.qin_m3s*.25,1e-9);
+  let qLeakL=leak(state.VL,p);
+  let qLeakR=leak(state.VR,p);
+drawFlow(leftLeak.x,leftLeak.y,leftLeak.x,waterY,qLeakL,refLeak,.12);
+  drawFlow(rightLeak.x,rightLeak.y,rightLeak.x,waterY,qLeakR,refLeak,.47);
+// Dynamic dump flow from the side that has tipped.
+  // This is blue/cyan and scales with the current amount of excess water in the dumping bucket.
+  if(state.dumping){
+    let Vdump=state.dumping==='L'?state.VL:state.VR;
+    let qDump=geomDump(state.dumping,Vdump,p,state.theta);
+    let pt=state.dumping==='L'?tr(-halfW,0):tr(halfW,0);
+    drawFlow(
+      pt.x,
+      pt.y,
+      pt.x+(state.dumping==='L'?-28:28),
+      waterY,
+      qDump,
+      Math.max(p.qin_m3s,(p.Vtip-p.Vreset)/Math.max(.1,p.dumpTime),1e-9),
+      .73
+    );
+  }
+  txt(ctx,'drainage / catch reservoir',trayL+18,trayB+28,'#67e8f9');
+}
+function txt(ctx,s,x,y,c){ctx.save();ctx.font='13px system-ui';let pad=7,m=ctx.measureText(s);ctx.fillStyle='rgba(15,23,42,.8)';ctx.fillRect(x-pad,y-15,m.width+2*pad,22);ctx.strokeStyle='rgba(71,85,105,.55)';ctx.strokeRect(x-pad,y-15,m.width+2*pad,22);ctx.fillStyle=c;ctx.fillText(s,x,y);ctx.restore()}
+function axes(ctx,w,h,xl,yl){ctx.clearRect(0,0,w,h);ctx.fillStyle='#0b1220';ctx.fillRect(0,0,w,h);ctx.strokeStyle='#334155';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(46,14);ctx.lineTo(46,h-34);ctx.lineTo(w-12,h-34);ctx.stroke();ctx.fillStyle='#94a3b8';ctx.font='12px system-ui';ctx.fillText(yl,8,20);ctx.fillText(xl,w-72,h-10)}
+function drawTime(p){
+  let ctx=tctx,w=timePlot.width,h=timePlot.height;
+  axes(ctx,w,h,'time','flow');
+  if(hist.length<2)return;
+
+  let t0=Math.max(0,state.t-60),t1=Math.max(60,state.t);
+  let x=o=>46+(o.t-t0)/(t1-t0)*(w-58);
+
+  let maxFlow=Math.max(p.qin_m3s,p.leakAtTip,1e-10);
+  hist.forEach(o=>{maxFlow=Math.max(maxFlow,o.qin||0,o.qout||0)});
+  maxFlow*=1.15;
+
+  let yq=q=>h-34-(q/maxFlow)*(h-52);
+
+  // Constant input line
+  ctx.strokeStyle='rgba(96,165,250,.95)';
+  ctx.lineWidth=2.4;
+  ctx.setLineDash([8,6]);
+  ctx.beginPath();
+  ctx.moveTo(46,yq(p.qin_m3s));
+  ctx.lineTo(w-12,yq(p.qin_m3s));
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Total output flow
+  ctx.strokeStyle='rgba(103,232,249,.98)';
+  ctx.lineWidth=2.7;
+  ctx.beginPath();
+  hist.forEach((o,i)=>{
+    let xx=x(o),yy=yq(o.qout||0);
+    if(i)ctx.lineTo(xx,yy);else ctx.moveTo(xx,yy)
+  });
+  ctx.stroke();
+
+  ctx.fillStyle='#60a5fa';
+  ctx.fillText('Q_in constant',58,28);
+  ctx.fillStyle='#67e8f9';
+  ctx.fillText('Q_out total',158,28);
+
+  ctx.fillStyle='#94a3b8';
+  ctx.fillText('0',24,h-34);
+  ctx.fillText((maxFlow*60000/1.15).toFixed(1)+' L/min',8,28);
+}
+function drawPhase(p){
+  let ctx=pctx,w=phasePlot.width,h=phasePlot.height;
+  axes(ctx,w,h,'Q_out','tilt angle');
+  if(hist.length<2)return;
+
+  let maxFlow=Math.max(p.qin_m3s,p.leakAtTip,1e-10);
+  hist.forEach(o=>{maxFlow=Math.max(maxFlow,o.qout||0)});
+  maxFlow*=1.15;
+
+  let x=o=>46+((o.qout||0)/maxFlow)*(w-70);
+  let y=o=>h-34-((o.theta/p.thetaMax+1)/2)*(h-52);
+
+  ctx.strokeStyle='rgba(52,211,153,.95)';
+  ctx.lineWidth=2.4;
+  ctx.beginPath();
+  hist.forEach((o,i)=>{
+    let xx=x(o),yy=y(o);
+    if(i)ctx.lineTo(xx,yy);else ctx.moveTo(xx,yy)
+  });
+  ctx.stroke();
+
+  // Mark the current state
+  let cur=hist[hist.length-1];
+  ctx.fillStyle='#67e8f9';
+  ctx.beginPath();
+  ctx.arc(x(cur),y(cur),4.5,0,Math.PI*2);
+  ctx.fill();
+
+  // Reference line for the constant input flow on the Q_out axis.
+  let xIn=46+(p.qin_m3s/maxFlow)*(w-70);
+  ctx.strokeStyle='rgba(96,165,250,.55)';
+  ctx.setLineDash([6,6]);
+  ctx.beginPath();
+  ctx.moveTo(xIn,14);
+  ctx.lineTo(xIn,h-34);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.fillStyle='#60a5fa';
+  ctx.fillText('Q_in level',xIn+6,28);
+  ctx.fillStyle='#94a3b8';
+  ctx.fillText('0',36,h-16);
+  ctx.fillText((maxFlow*60000/1.15).toFixed(1)+' L/min',w-95,h-16);
+}
+function frame(now){let p=P();labels(p);let raw=Math.min(.05,(now-last)/1000);last=now;if(!paused){let n=4,dt=raw/n;for(let i=0;i<n;i++)step(dt,p)}drawScene(p);drawTime(p);drawPhase(p);requestAnimationFrame(frame)}
+document.getElementById('pauseBtn').onclick=()=>{paused=!paused;document.getElementById('pauseBtn').textContent=paused?'Resume':'Pause'};document.getElementById('resetBtn').onclick=reset;function set(v){for(let k in v){if(el[k])el[k].value=v[k]}reset()}document.getElementById('presetFixed').onclick=()=>set({qin:.22,leakDia:5,leakHeight:.5,length:14,width:8,height:8,bareMass:80,tipAngle:18,switchTime:.55});document.getElementById('presetCycle').onclick=()=>set({qin:1.2,leakDia:3,leakHeight:.5,length:14,width:8,height:8,bareMass:80,tipAngle:18,switchTime:.55});document.getElementById('presetPinned').onclick=()=>set({qin:4.3,leakDia:2,leakHeight:.5,length:14,width:8,height:8,bareMass:80,tipAngle:15,switchTime:1.2});ids.forEach(id=>el[id].addEventListener('input',()=>{let p=P();state.VL=Math.min(state.VL,p.Vmax);state.VR=Math.min(state.VR,p.Vmax);if(!state.dumping)state.target=activeRestAngle(state.active,p)}));reset();requestAnimationFrame(frame);
+</script>
+</body></html>
